@@ -30,20 +30,15 @@ def _adapt_stem_for_cifar(model):
 
 def build_teacher(arch="resnet50", num_classes=100, pretrained=True):
     assert arch in ("resnet50", "resnet34")
-    weights = None
-    if pretrained:
-        weights = tvm.ResNet50_Weights.IMAGENET1K_V2 if arch == "resnet50" \
-            else tvm.ResNet34_Weights.IMAGENET1K_V1
     ctor = tvm.resnet50 if arch == "resnet50" else tvm.resnet34
-    model = ctor(weights=weights)
+    model = ctor(pretrained=pretrained)
     model = _adapt_stem_for_cifar(model)
     model.fc = nn.Linear(model.fc.in_features, num_classes)
     return model
 
 
 def build_student_resnet18(num_classes=100, pretrained=True):
-    weights = tvm.ResNet18_Weights.IMAGENET1K_V1 if pretrained else None
-    model = tvm.resnet18(weights=weights)
+    model = tvm.resnet18(pretrained=pretrained)
     model = _adapt_stem_for_cifar(model)
     model.fc = nn.Linear(model.fc.in_features, num_classes)
     return model
