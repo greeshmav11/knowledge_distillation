@@ -1,0 +1,88 @@
+{
+  "overall_acc_teacher": 0.7049000263214111,
+  "overall_acc_plain_student": 0.7583000063896179,
+  "overall_acc_kd_student": 0.7572000026702881,
+  "mean_per_class_delta": -0.0010999983549118042,
+  "std_per_class_delta": 0.037600397016522645,
+  "n_classes_hurt_by_kd": 36,
+  "n_classes_helped_by_kd": 31,
+  "worst_hurt_classes": [
+    "streetcar",
+    "rocket",
+    "bear",
+    "lizard",
+    "squirrel",
+    "shark",
+    "turtle",
+    "pickup_truck",
+    "porcupine",
+    "possum"
+  ],
+  "most_helped_classes": [
+    "bridge",
+    "pear",
+    "camel",
+    "spider",
+    "chimpanzee",
+    "caterpillar",
+    "snail",
+    "lobster",
+    "butterfly",
+    "man"
+  ],
+  "n_examples_regressed_by_kd": 633,
+  "n_examples_improved_by_kd": 622,
+  "classes_with_most_regressions": [
+    {
+      "class": "bowl",
+      "n_regressed": 16
+    },
+    {
+      "class": "shark",
+      "n_regressed": 16
+    },
+    {
+      "class": "lizard",
+      "n_regressed": 15
+    },
+    {
+      "class": "streetcar",
+      "n_regressed": 14
+    },
+    {
+      "class": "girl",
+      "n_regressed": 13
+    },
+    {
+      "class": "bear",
+      "n_regressed": 12
+    },
+    {
+      "class": "turtle",
+      "n_regressed": 12
+    },
+    {
+      "class": "mouse",
+      "n_regressed": 12
+    },
+    {
+      "class": "rocket",
+      "n_regressed": 11
+    },
+    {
+      "class": "boy",
+      "n_regressed": 11
+    }
+  ],
+  "corr_delta_vs_confusability_pearson": {
+    "r": 0.08414828688412858,
+    "p": 0.4051938977219039
+  },
+  "corr_delta_vs_confusability_spearman": {
+    "rho": 0.01388856822111677,
+    "p": 0.8909152792675702
+  },
+  "ece_teacher": 0.06226038187742233,
+  "ece_student_plain": 0.08723138272762299,
+  "ece_student_kd": 0.03696103394031525
+}

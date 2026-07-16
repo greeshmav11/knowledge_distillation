@@ -18,12 +18,12 @@ ckpts/
 *.pth
 
 # Analysis outputs (regenerable by re-running analyze.py)
-results/
-results_test/
-results_with_mitigation/
-*.png
-*.npy
-*.npz
+# results/
+# results_test/
+# results_with_mitigation/
+# *.png
+# *.npy
+# *.npz
 
 # Cluster/job scheduler artifacts
 *.log
