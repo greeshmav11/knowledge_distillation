@@ -1,0 +1,40 @@
+# Python virtual environment
+kd_env/
+
+# Python cache/bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Dataset files (large, and re-downloadable/re-copyable — don't bloat the repo)
+data/cifar-100-python.tar.gz
+data/cifar-100-python/
+src/data/cifar-100-python/
+src/data/*.tar.gz
+
+# Model checkpoints (large binary files, regenerable by re-running train.py)
+ckpts/
+*.pt
+*.pth
+
+# Analysis outputs (regenerable by re-running analyze.py)
+results/
+results_test/
+results_with_mitigation/
+*.png
+*.npy
+*.npz
+
+# Cluster/job scheduler artifacts
+*.log
+*.out
+*.err
+
+# SSH / secrets — do NOT commit these
+sshd_config
+*.pem
+*.key
+id_rsa*
+
+# OS junk
+.DS_Store
