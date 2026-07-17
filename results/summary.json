@@ -1,0 +1,88 @@
+{
+  "overall_acc_teacher": 0.7537000179290771,
+  "overall_acc_plain_student": 0.7699000239372253,
+  "overall_acc_kd_student": 0.7821000218391418,
+  "mean_per_class_delta": 0.012200002074241639,
+  "std_per_class_delta": 0.03946086968083824,
+  "n_classes_hurt_by_kd": 22,
+  "n_classes_helped_by_kd": 41,
+  "worst_hurt_classes": [
+    "flatfish",
+    "lamp",
+    "tulip",
+    "bus",
+    "chair",
+    "whale",
+    "boy",
+    "spider",
+    "maple_tree",
+    "rabbit"
+  ],
+  "most_helped_classes": [
+    "lobster",
+    "woman",
+    "plain",
+    "telephone",
+    "snail",
+    "table",
+    "forest",
+    "otter",
+    "bowl",
+    "seal"
+  ],
+  "n_examples_regressed_by_kd": 506,
+  "n_examples_improved_by_kd": 628,
+  "classes_with_most_regressions": [
+    {
+      "class": "boy",
+      "n_regressed": 14
+    },
+    {
+      "class": "flatfish",
+      "n_regressed": 11
+    },
+    {
+      "class": "bus",
+      "n_regressed": 11
+    },
+    {
+      "class": "girl",
+      "n_regressed": 10
+    },
+    {
+      "class": "crocodile",
+      "n_regressed": 10
+    },
+    {
+      "class": "maple_tree",
+      "n_regressed": 10
+    },
+    {
+      "class": "lamp",
+      "n_regressed": 10
+    },
+    {
+      "class": "man",
+      "n_regressed": 9
+    },
+    {
+      "class": "tulip",
+      "n_regressed": 9
+    },
+    {
+      "class": "butterfly",
+      "n_regressed": 9
+    }
+  ],
+  "corr_delta_vs_confusability_pearson": {
+    "r": 0.10287716984877268,
+    "p": 0.30841997450317993
+  },
+  "corr_delta_vs_confusability_spearman": {
+    "rho": 0.16416423452129086,
+    "p": 0.10265927241181512
+  },
+  "ece_teacher": 0.10531963407993317,
+  "ece_student_plain": 0.07988559454679489,
+  "ece_student_kd": 0.10287757962942123
+}
