@@ -1020,6 +1020,11 @@
       "ci_lower_2.5": 0.005700000000000003,
       "ci_upper_97.5": 0.018400000000000003
     },
+    "std_per_class_delta": {
+      "point_estimate": 0.05149727820732505,
+      "ci_lower_2.5": 0.04484118470899202,
+      "ci_upper_97.5": 0.05822164539766321
+    },
     "n_classes_hurt_by_kd": {
       "point_estimate": 36.7735,
       "ci_lower_2.5": 29.0,
@@ -1249,5 +1254,23 @@
         "n_examples": 346
       }
     }
-  ]
+  ],
+  "ece_bootstrap_ci": {
+    "ece_plain_student": {
+      "point_estimate": 0.08003797140076943,
+      "ci_lower_2.5": 0.07358829525278884,
+      "ci_upper_97.5": 0.08653336376920341
+    },
+    "ece_kd_student": {
+      "point_estimate": 0.1030493709192887,
+      "ci_lower_2.5": 0.09595840565212069,
+      "ci_upper_97.5": 0.10971915044594553
+    },
+    "ece_delta_kd_minus_plain": {
+      "point_estimate": 0.023011399518519264,
+      "ci_lower_2.5": 0.01624152213880794,
+      "ci_upper_97.5": 0.029878772406652526
+    },
+    "n_bootstrap_resamples": 2000
+  }
 }
