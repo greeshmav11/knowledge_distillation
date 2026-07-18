@@ -302,7 +302,9 @@ def main():
               acc_teacher=acc_teacher, acc_plain=acc_plain, acc_kd=acc_kd,
               delta=delta, confusability=confusability,
               labels=labels.numpy(), preds_teacher=preds_teacher.numpy(),
-              preds_plain=preds_plain.numpy(), preds_kd=preds_kd.numpy())
+              preds_plain=preds_plain.numpy(), preds_kd=preds_kd.numpy(),
+              logits_teacher=teacher_logits.numpy(), logits_plain=plain_logits.numpy(),
+              logits_kd=kd_logits.numpy())
 
     print(json.dumps(summary, indent=2))
     print(f"\nAll plots and summary.json written to {args.out_dir}/")

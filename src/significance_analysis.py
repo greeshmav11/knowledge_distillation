@@ -24,7 +24,11 @@ logits_kd=kd_logits.numpy()` to the np.savez(...) call in analyze.py's
 just re-inference from the existing checkpoints).
 
 Usage:
-    python significance_analysis.py --results_dir results/ --data_root ./data
+    python significance_analysis.py --results_dir results/
+
+No GPU, dataset, or model checkpoints needed -- this only reads the
+raw_arrays.npz file that analyze.py already saved (predictions + labels),
+so it runs comfortably on a laptop CPU.
 """
 
 import argparse
@@ -34,7 +38,28 @@ import os
 import numpy as np
 from scipy.stats import binomtest
 
-from data import get_cifar100_loaders
+# Standard CIFAR-100 fine label names, in official dataset order (index 0-99).
+# Hardcoded here instead of calling data.py's get_cifar100_loaders(), which
+# would download the full ~170MB dataset just to read off these 100 strings
+# -- unnecessary and a common source of local-machine download failures.
+CIFAR100_FINE_LABELS = [
+    "apple", "aquarium_fish", "baby", "bear", "beaver", "bed", "bee", "beetle",
+    "bicycle", "bottle", "bowl", "boy", "bridge", "bus", "butterfly", "camel",
+    "can", "castle", "caterpillar", "cattle", "chair", "chimpanzee", "clock",
+    "cloud", "cockroach", "couch", "crab", "crocodile", "cup", "dinosaur",
+    "dolphin", "elephant", "flatfish", "forest", "fox", "girl", "hamster",
+    "house", "kangaroo", "keyboard", "lamp", "lawn_mower", "leopard", "lion",
+    "lizard", "lobster", "man", "maple_tree", "motorcycle", "mountain",
+    "mouse", "mushroom", "oak_tree", "orange", "orchid", "otter", "palm_tree",
+    "pear", "pickup_truck", "pine_tree", "plain", "plate", "poppy",
+    "porcupine", "possum", "rabbit", "raccoon", "ray", "road", "rocket",
+    "rose", "sea", "seal", "shark", "shrew", "skunk", "skyscraper", "snail",
+    "snake", "spider", "squirrel", "streetcar", "sunflower", "sweet_pepper",
+    "table", "tank", "telephone", "television", "tiger", "tractor", "train",
+    "trout", "tulip", "turtle", "wardrobe", "whale", "willow_tree", "wolf",
+    "woman", "worm",
+]
+
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +133,7 @@ def bootstrap_headline_metrics(preds_plain, preds_kd, labels, num_classes,
 
     boot_overall_delta = np.empty(n_boot)
     boot_mean_per_class_delta = np.empty(n_boot)
+    boot_std_per_class_delta = np.empty(n_boot)
     boot_n_hurt = np.empty(n_boot, dtype=int)
     boot_n_helped = np.empty(n_boot, dtype=int)
 
@@ -131,6 +157,7 @@ def bootstrap_headline_metrics(preds_plain, preds_kd, labels, num_classes,
 
         boot_overall_delta[b] = (n_correct_kd - n_correct_plain) / n_total
         boot_mean_per_class_delta[b] = np.nanmean(per_class_delta)
+        boot_std_per_class_delta[b] = np.nanstd(per_class_delta)
         boot_n_hurt[b] = int((per_class_delta < -delta_thresh).sum())
         boot_n_helped[b] = int((per_class_delta > delta_thresh).sum())
 
@@ -144,8 +171,75 @@ def bootstrap_headline_metrics(preds_plain, preds_kd, labels, num_classes,
     return {
         "overall_acc_delta_kd_minus_plain": ci(boot_overall_delta),
         "mean_per_class_delta": ci(boot_mean_per_class_delta),
+        "std_per_class_delta": ci(boot_std_per_class_delta),
         "n_classes_hurt_by_kd": ci(boot_n_hurt),
         "n_classes_helped_by_kd": ci(boot_n_helped),
+        "n_bootstrap_resamples": n_boot,
+    }
+
+
+def expected_calibration_error(logits, preds, labels, n_bins=15):
+    """Same definition as analyze.py's ECE (confidence-vs-accuracy gap,
+    averaged across bins, weighted by bin occupancy), reimplemented here in
+    numpy so this script has no torch dependency."""
+    exp_logits = np.exp(logits - logits.max(axis=1, keepdims=True))
+    probs = exp_logits / exp_logits.sum(axis=1, keepdims=True)
+    confidences = probs.max(axis=1)
+    accuracies = (preds == labels).astype(float)
+
+    bin_edges = np.linspace(0, 1, n_bins + 1)
+    ece = 0.0
+    n = len(labels)
+    for i in range(n_bins):
+        lo, hi = bin_edges[i], bin_edges[i + 1]
+        in_bin = (confidences > lo) & (confidences <= hi)
+        prop = in_bin.mean()
+        if prop > 0:
+            ece += abs(confidences[in_bin].mean() - accuracies[in_bin].mean()) * prop
+    return ece
+
+
+def bootstrap_ece_delta(logits_plain, logits_kd, preds_plain, preds_kd, labels,
+                         num_classes, n_boot=2000, seed=0):
+    """
+    Bootstrap CI on the calibration trade-off: ECE(kd_student) -
+    ECE(plain_student). Stratified resampling within each true class, same
+    protocol as bootstrap_headline_metrics, so it's directly comparable.
+    """
+    rng = np.random.default_rng(seed)
+    class_indices = [np.where(labels == c)[0] for c in range(num_classes)]
+    all_idx_pool = np.concatenate(class_indices)
+
+    boot_ece_plain = np.empty(n_boot)
+    boot_ece_kd = np.empty(n_boot)
+    boot_ece_delta = np.empty(n_boot)
+
+    for b in range(n_boot):
+        sampled_chunks = []
+        for c in range(num_classes):
+            idx = class_indices[c]
+            if len(idx) == 0:
+                continue
+            sampled_chunks.append(rng.choice(idx, size=len(idx), replace=True))
+        sampled = np.concatenate(sampled_chunks)
+
+        ece_p = expected_calibration_error(logits_plain[sampled], preds_plain[sampled], labels[sampled])
+        ece_k = expected_calibration_error(logits_kd[sampled], preds_kd[sampled], labels[sampled])
+        boot_ece_plain[b] = ece_p
+        boot_ece_kd[b] = ece_k
+        boot_ece_delta[b] = ece_k - ece_p
+
+    def ci(arr):
+        return {
+            "point_estimate": float(np.mean(arr)),
+            "ci_lower_2.5": float(np.percentile(arr, 2.5)),
+            "ci_upper_97.5": float(np.percentile(arr, 97.5)),
+        }
+
+    return {
+        "ece_plain_student": ci(boot_ece_plain),
+        "ece_kd_student": ci(boot_ece_kd),
+        "ece_delta_kd_minus_plain": ci(boot_ece_delta),
         "n_bootstrap_resamples": n_boot,
     }
 
@@ -215,7 +309,6 @@ def suspect_pair_report(preds_teacher, preds_plain, preds_kd, labels,
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--results_dir", default="results")
-    p.add_argument("--data_root", default="./data")
     p.add_argument("--n_boot", type=int, default=2000)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument(
@@ -232,9 +325,7 @@ def main():
     preds_plain = data["preds_plain"]
     preds_kd = data["preds_kd"]
     num_classes = int(labels.max()) + 1
-
-    _, _, meta = get_cifar100_loaders(root=args.data_root)
-    class_names = meta["class_names"]
+    class_names = CIFAR100_FINE_LABELS
 
     out = {}
 
@@ -280,6 +371,23 @@ def main():
         preds_teacher, preds_plain, preds_kd, labels, class_names, groups
     )
 
+    # 4. ECE bootstrap CI -- only if analyze.py was re-run with the logits
+    # patch (adds logits_plain / logits_kd to raw_arrays.npz). Skips
+    # gracefully with a clear message otherwise, rather than failing.
+    if "logits_plain" in data.files and "logits_kd" in data.files:
+        print("Logits found -- running ECE bootstrap "
+              "(n_boot=%d)..." % args.n_boot)
+        out["ece_bootstrap_ci"] = bootstrap_ece_delta(
+            data["logits_plain"], data["logits_kd"],
+            preds_plain, preds_kd, labels, num_classes,
+            n_boot=args.n_boot, seed=args.seed,
+        )
+    else:
+        out["ece_bootstrap_ci"] = None
+        print("\nNOTE: raw_arrays.npz has no saved logits, so the ECE "
+              "calibration-tradeoff CI was skipped. Re-run analyze.py with "
+              "the logits-saving patch, then re-run this script, to get it.")
+
     out_path = os.path.join(args.results_dir, "significance_analysis.json")
     with open(out_path, "w") as f:
         json.dump(out, f, indent=2)
@@ -289,6 +397,9 @@ def main():
     print(json.dumps(out["mcnemar_summary"], indent=2))
     print("\n=== Bootstrap 95% CIs ===")
     print(json.dumps(out["bootstrap_ci"], indent=2))
+    if out["ece_bootstrap_ci"] is not None:
+        print("\n=== ECE calibration-tradeoff bootstrap 95% CI ===")
+        print(json.dumps(out["ece_bootstrap_ci"], indent=2))
     print("\n=== Suspect group within-group confusion rates ===")
     for g in out["suspect_group_confusion"]:
         if "error" in g:
