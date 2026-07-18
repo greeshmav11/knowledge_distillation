@@ -26,7 +26,7 @@ ckpts/
 # *.npz
 
 # Cluster/job scheduler artifacts
-*.log
+#*.log
 *.out
 *.err
 
