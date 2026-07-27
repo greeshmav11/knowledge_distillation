@@ -147,10 +147,6 @@ python src/make_example_grid.py --results_dir results_50/ --data_root ./data --i
 └── Dockerfile
 ```
 
-*(Note: standardized on `results_50/` throughout this README since that's
-the folder the current numbers come from — rename to `results/` here and
-in the commands below if you'd rather keep the original naming.)*
-
 ## How to reproduce this
 
 The dataset itself isn't included in the repo (it's too large for GitHub).
