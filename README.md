@@ -18,23 +18,26 @@ average.
 
 ## What we actually found
 
-- KD does make the student more accurate overall (about +1.2 percentage
-  points, and we're confident this is a real effect, not noise).
+- KD does make the student more accurate overall (about **+1.8 percentage
+  points**, and we're confident this is a real effect, not noise — the 95%
+  confidence interval is +1.1 to +2.4 points, well clear of zero).
 - But KD also makes the student **worse at knowing when it might be wrong**
   (technically: worse "calibration" — its confidence scores are less
-  trustworthy). This is a real, measurable trade-off.
+  trustworthy). This is a real, measurable trade-off (+1.9 points of ECE,
+  95% CI +1.2 to +2.5 points — also clear of zero).
 - We could **not** confirm that KD hurts or helps specific individual
-  classes. Some classes looked better or worse at first, but once we
-  properly accounted for the fact that we tested 100 classes at once, none
-  of those differences held up statistically. They're most likely just
-  noise from having a small number of test images per class (~100 each).
+  classes. 5 of 100 classes looked significant before correcting for the
+  fact that we ran 100 tests at once — but **zero classes survive
+  Benjamini-Hochberg correction** for multiple comparisons. So any
+  class-level story is almost certainly noise from having a small number of
+  test images per class (~100 each).
 
-So our headline takeaway changed from "KD is unfair to certain classes"
-(not supported by the data) to "**KD trades a bit of accuracy gain for a
-real loss in calibration**" — a more honest and more interesting finding.
+So our headline takeaway is: "**KD trades a bit of accuracy gain for a
+real loss in calibration**" — this holds up at the aggregate level, while
+any claims about *which* classes KD is unfair to do not.
 
-See [`results/summary.json`](results/summary.json) and
-[`results/significance_analysis.json`](results/significance_analysis.json)
+See [`results_50/summary.json`](results_50/summary.json) and
+[`results_50/significance_analysis.json`](results_50/significance_analysis.json)
 for the full numbers.
 
 ## How the experiment was set up
@@ -58,15 +61,15 @@ We trained three models, changing only the loss function each time:
 
 ## Results
 
-| Model | Test accuracy | Calibration error (lower = better) |
+| Model | Test accuracy | Calibration error (ECE, lower = better) |
 |---|---|---|
-| Teacher (ResNet-50) | 75.37% | 0.105 |
-| Student, plain (ResNet-18) | 76.99% | 0.080 |
-| Student, KD (ResNet-18) | 78.21% | 0.103 |
+| Teacher (ResNet-50) | 80.61% | 0.104 |
+| Student, plain (ResNet-18) | 77.01% | 0.080 |
+| Student, KD (ResNet-18) | 78.79% | 0.098 |
 
-(Note: the teacher scoring lower than both students is expected — this is a
-known effect in the KD literature called the "capacity gap," not a mistake
-in our setup.)
+With this properly-converged ResNet-50 teacher, KD gives a clean net
+accuracy gain over the plain student, at the cost of noticeably worse
+calibration.
 
 The full breakdown — per-class results, which predictions "flipped" between
 models, how confused certain classes are with each other, and calibration
@@ -79,25 +82,49 @@ headline numbers) come from
 [`src/significance_analysis.py`](src/significance_analysis.py), saved to
 [`results_50/significance_analysis.json`](results_50/significance_analysis.json).
 
+### Per-class picture
+
+- Mean per-class accuracy delta (KD − plain): **+1.78 points** (std 3.9
+  points across classes) — 23 classes were hurt, 53 were helped, the rest
+  essentially unchanged.
+- Of 679 individual test images KD newly got *right* (that plain got
+  wrong) and 501 it newly got *wrong* (that plain got right), the net is
+  positive, consistent with the accuracy gain above.
+- 5 of 100 classes were significant at p<0.05 by McNemar's test before
+  correction (**flatfish** hurt; **mountain**, **seal**, **telephone**, and
+  **worm** helped) — but **none of these survive Benjamini-Hochberg
+  correction**, so we do not treat any individual class as a confirmed
+  effect.
+- No significant correlation was found between how much a class's accuracy
+  changed and how visually/semantically confusable it is with other
+  classes (Pearson r=0.11, p=0.28; Spearman ρ=0.12, p=0.25).
+- Checking specific suspect groups of similar-looking classes: within-group
+  confusion for chair/table went 3.0% (teacher) → 2.4% (plain) → 1.8% (KD),
+  and for boy/girl/man/woman went 29.7% (teacher) → 33.9% (plain) → 31.9%
+  (KD). In both cases KD's within-group confusion is a bit lower than the
+  plain student's, but neither is a large or tested-for-significance
+  effect — just descriptive.
+
 ## What it actually looks like
 
-Actual test images the plain student got wrong that the KD student got
-right, for the handful of classes where KD's positive effect held up
-statistically (seal, otter, bowl, forest, table, snail, telephone, plain):
+Example test images the plain student got wrong that the KD student got
+right, for classes with the largest observed (uncorrected) positive
+effect — mountain, seal, telephone, worm:
 
 ![KD improved examples](results_50/example_grid_improved.png)
 
-And the reverse — images the plain student got right that KD broke, for the
-classes where KD's negative effect held up (flatfish, lamp, chair). Notice
-how consistent some of these mistakes are — KD doesn't just get chair wrong
-randomly, it almost always mistakes it for couch specifically, which is a
-nice concrete example of two visually/functionally similar classes getting
-confused with each other:
+And the reverse — images the plain student got right that KD broke, for
+the class with the largest observed (uncorrected) negative effect —
+flatfish:
 
 ![KD regressed examples](results_50/example_grid_regressed.png)
 
 Both images generated by
-[`src/make_example_grid.py`](src/make_example_grid.py).
+[`src/make_example_grid.py`](src/make_example_grid.py):
+
+```bash
+python src/make_example_grid.py --results_dir results_50/ --data_root ./data --include_regressed
+```
 
 ## Repo structure
 
@@ -107,18 +134,22 @@ Both images generated by
 ├── cluster/                    Kubernetes config for running training on the university's GPU cluster
 ├── data/                       CIFAR-100 dataset (not included in the repo — see below)
 ├── logs/                       raw training logs
-├── results/                    all output from analyze.py and significance_analysis.py
+├── results_50/                 all output from analyze.py and significance_analysis.py (ResNet-50 teacher run)
 ├── src/
-│   ├── data.py                   loads the CIFAR-100 dataset
-│   ├── models.py                 builds the teacher/student models
-│   ├── losses.py                 the KD loss function and variants
-│   ├── train.py                   trains any of the three models
-│   ├── analyze.py                 computes per-class results and calibration
-│   ├── significance_analysis.py   runs the statistical tests
-│   └── make_example_grid.py       builds the example-image figures above
-|   └── training_curves_plot.py       training curves plot
+│   ├── data.py                     loads the CIFAR-100 dataset
+│   ├── models.py                   builds the teacher/student models
+│   ├── losses.py                   the KD loss function and variants
+│   ├── train.py                    trains any of the three models
+│   ├── analyze.py                  computes per-class results and calibration
+│   ├── significance_analysis.py    runs the statistical tests
+│   ├── make_example_grid.py        builds the example-image figures above
+│   └── training_curves_plot.py     plots training curves
 └── Dockerfile
 ```
+
+*(Note: standardized on `results_50/` throughout this README since that's
+the folder the current numbers come from — rename to `results/` here and
+in the commands below if you'd rather keep the original naming.)*
 
 ## How to reproduce this
 
@@ -137,41 +168,47 @@ python3 src/train.py --mode student_plain --student resnet18 --epochs 60 \
 
 # 3. Train the KD student
 python3 src/train.py --mode student_kd --student resnet18 --epochs 60 \
-    --teacher_ckpt ckpts/teacher.pt --teacher_arch resnet34 \
+    --teacher_ckpt ckpts/teacher.pt --teacher_arch resnet50 \
     --T 4.0 --alpha 0.5 --save ckpts/student_kd.pt
 
 # 4. Analyze the results
 python3 src/analyze.py \
-    --teacher_ckpt ckpts/teacher.pt --teacher_arch resnet34 \
+    --teacher_ckpt ckpts/teacher.pt --teacher_arch resnet50 \
     --student_plain_ckpt ckpts/student_plain.pt \
     --student_kd_ckpt ckpts/student_kd.pt \
-    --student resnet18 --out_dir results/
+    --student resnet18 --out_dir results_50/
 
 # 5. Run the statistical tests (fast — no GPU or retraining needed)
-python3 src/significance_analysis.py --results_dir results/
+python3 src/significance_analysis.py --results_dir results_50/
 
 # 6. (Optional) build the example-image figures
-python3 src/make_example_grid.py --results_dir results/ --data_root data/ \
+python3 src/make_example_grid.py --results_dir results_50/ --data_root data/ \
     --n_per_class 4 --include_regressed
+
+# 7. (Optional) plot training curves
+python3 src/training_curves_plot.py --logs_dir logs/ --out_dir results_50/
 ```
 
-Each training run takes well under an hour on a single V100 GPU.
+Each training run takes roughly 24 sec/epoch on a single V100 GPU
+(~24 minutes for 60 epochs).
 
 ## Main takeaways
 
 - **KD really does improve accuracy** — confirmed with a 95% confidence
-  interval that doesn't include zero (+0.57 to +1.84 percentage points).
+  interval that doesn't include zero (+1.1 to +2.4 percentage points).
 - **KD really does hurt calibration** — the KD student's confidence scores
-  are measurably less reliable than the plain student's. This is a
-  trade-off that a single accuracy number would completely hide.
-- **We can't confirm KD unfairly targets specific classes** — some classes
-  looked affected at first glance, but this didn't hold up once we
-  corrected for testing 100 classes at the same time.
+  are measurably less reliable than the plain student's (+1.2 to +2.5
+  points of ECE, 95% CI). This is a trade-off that a single accuracy number
+  would completely hide.
+- **We can't confirm KD unfairly targets specific classes** — 5 of 100
+  classes looked affected at first glance, but none of them held up once
+  we corrected for testing 100 classes at the same time.
 - **No link found** between how much a class's accuracy changed and how
   visually/semantically confusable that class is with others.
-- Checking specific groups of similar-looking classes (like
-  chair/table, or boy/girl/man/woman) didn't show any dramatic change
-  caused by KD.
+- Checking specific groups of similar-looking classes (chair/table,
+  boy/girl/man/woman) showed a small *decrease* in within-group confusion
+  under KD in both cases, but these are descriptive observations, not
+  statistically tested effects.
 
 Full discussion, limitations, and related work (capacity-gap effects,
 calibration under distillation) are in the project report/slides.
