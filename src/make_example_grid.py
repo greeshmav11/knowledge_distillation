@@ -5,25 +5,34 @@ per-class delta bar chart).
 
 Two grids are produced:
   1. "improved" examples: images the plain student got WRONG that the KD
-     student got RIGHT, sampled from the classes with the strongest
-     significant positive delta (seal, otter, bowl, forest, table, snail,
-     telephone, plain).
+     student got RIGHT, sampled from the classes with the largest *observed*
+     (uncorrected) positive delta: mountain, seal, telephone, worm.
   2. "regressed" examples (optional, --include_regressed): the reverse, for
-     the classes with significant negative delta (flatfish, lamp, chair).
+     the class with the largest observed (uncorrected) negative delta:
+     flatfish.
 
-Uses results/raw_arrays.npz and results/improved_indices.npy /
+IMPORTANT CAVEAT: these classes are picked from raw (uncorrected) per-class
+McNemar tests in significance_analysis.json. None of them survive
+Benjamini-Hochberg correction for testing 100 classes at once
+(n_significant_after_bh_correction == 0). So these images illustrate the
+largest *observed* differences between the plain and KD students, not a
+statistically confirmed per-class effect. Don't caption these as "KD is
+significantly better/worse at X" -- say "largest observed difference"
+instead.
+
+Uses results_50/raw_arrays.npz and results_50/improved_indices.npy /
 regressed_indices.npy, already saved by analyze.py -- no re-inference needed.
 Loads raw images directly via torchvision.datasets.CIFAR100 in the same
 (unshuffled) index order analyze.py's test_loader used.
 
-ASSUMPTION TO VERIFY: this assumes your data.py's test loader does NOT
-shuffle the test set (standard practice, and the default for
-torchvision.datasets.CIFAR100 iterated directly). If your test_loader uses
-shuffle=True, the indices here will NOT line up with the right images --
-check data.py's get_cifar100_loaders before trusting the output.
+CONFIRMED (checked against data.py): get_cifar100_loaders builds the test
+DataLoader with shuffle=False, so the index order used by analyze.py's
+get_all_logits matches this script's direct torchvision.datasets.CIFAR100
+iteration order. If you ever change the test loader to shuffle, this
+alignment breaks and needs re-checking.
 
 Usage:
-    python src/make_example_grid.py --results_dir results/ --data_root ./data
+    python src/make_example_grid.py --results_dir results_50/ --data_root ./data
 """
 
 import argparse
@@ -52,12 +61,14 @@ CIFAR100_FINE_LABELS = [
 ]
 NAME_TO_IDX = {n: i for i, n in enumerate(CIFAR100_FINE_LABELS)}
 
-# From the bootstrap/significance analysis: classes with a significant
-# positive delta (KD robustly helped) and significant negative delta
-# (KD robustly hurt). Edit these lists if your final results differ.
-SIGNIFICANT_HELPED = ["seal", "otter", "bowl", "forest", "table", "snail",
-                       "telephone", "plain"]
-SIGNIFICANT_HURT = ["flatfish", "lamp", "chair"]
+# From significance_analysis.json's per-class (uncorrected) McNemar tests:
+# these are the classes with p<0.05 BEFORE Benjamini-Hochberg correction.
+# NONE of them survive BH correction (n_significant_after_bh_correction: 0),
+# so treat these as "largest observed difference" examples, not confirmed
+# per-class effects. Re-derive this list from significance_analysis.json
+# if you re-run the experiment -- don't hand-edit without checking the JSON.
+OBSERVED_TOP_HELPED = ["mountain", "seal", "telephone", "worm"]
+OBSERVED_TOP_HURT = ["flatfish"]
 
 
 def build_grid(dataset, flip_indices, labels, preds_plain, preds_kd,
@@ -73,7 +84,7 @@ def build_grid(dataset, flip_indices, labels, preds_plain, preds_kd,
         examples[c] = class_flip_idxs[:n_per_class]
 
     n_rows = len(target_idxs)
-    n_cols = max(len(v) for v in examples.values()) if examples else 1
+    n_cols = max((len(v) for v in examples.values()), default=1)
     n_cols = max(n_cols, 1)
 
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(2.2 * n_cols, 2.4 * n_rows))
@@ -109,7 +120,7 @@ def build_grid(dataset, flip_indices, labels, preds_plain, preds_kd,
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--results_dir", default="results")
+    p.add_argument("--results_dir", default="results_50")
     p.add_argument("--data_root", default="./data")
     p.add_argument("--n_per_class", type=int, default=4)
     p.add_argument("--include_regressed", action="store_true",
@@ -128,8 +139,9 @@ def main():
 
     build_grid(
         dataset, improved_indices, labels, preds_plain, preds_kd,
-        SIGNIFICANT_HELPED, args.n_per_class,
-        title="Examples KD fixed (plain student wrong -> KD student right)",
+        OBSERVED_TOP_HELPED, args.n_per_class,
+        title="Largest observed (uncorrected) KD gains: plain wrong -> KD right\n"
+              "(mountain, seal, telephone, worm -- none survive BH correction)",
         out_path=os.path.join(args.results_dir, "example_grid_improved.png"),
     )
 
@@ -137,8 +149,9 @@ def main():
         regressed_indices = np.load(os.path.join(args.results_dir, "regressed_indices.npy"))
         build_grid(
             dataset, regressed_indices, labels, preds_plain, preds_kd,
-            SIGNIFICANT_HURT, args.n_per_class,
-            title="Examples KD broke (plain student right -> KD student wrong)",
+            OBSERVED_TOP_HURT, args.n_per_class,
+            title="Largest observed (uncorrected) KD regression: plain right -> KD wrong\n"
+                  "(flatfish -- does not survive BH correction)",
             out_path=os.path.join(args.results_dir, "example_grid_regressed.png"),
         )
 
